@@ -1,8 +1,7 @@
-require("plenary.reload").reload_module("ct.TypeBuilder")
+require("plenary.reload").reload_module("ct.parser")
 require("plenary.reload").reload_module("ct.utils")
 
-local TypeBuilder = require("ct.TypeBuilder")
-local utils = require("ct.utils")
+local file_parser = require("ct.parser")
 
 -- make simple type builders
 
@@ -15,6 +14,8 @@ local utils = require("ct.utils")
 -- extend
 
 -- INPUTS
+
+---@alias int number this is a number
 
 ---@class ct.Foo here
 ---@field name string
@@ -48,89 +49,12 @@ do --test code only to remove old insertions
 end
 
 ---somehow @as is generated::
-local match = require("ct.match").new("ct.TypeComment") --[[@as fun(union: ct.TypeComment): ct.Match_TypeComment]]
+local match = require("ct.api.match").new("ct.TypeComment") --[[@as fun(union: ct.TypeComment): ct.Match_TypeComment]]
 
----Collecion structure for the types in a file
----@class ct.FileTypes
-local types = {
-	---@type TypeBuilderBase[]
-	builders = {},
-	---@type ct.TypeLookup
-	types = {},
-}
-
-local comment_idx = nil
-
---[[ parse buffer and get all type comments
-
- NOTE: @class
-
-only supporting basic class + field syntax atm, if the api is good, will expand
-the parser, anything else is undefined behaviour.
-syntax must be triple dash no space, e.g "---@class ..." "---@field ..."
-comments must be inline e.g "---@field foo string Comment for field foo"
-
- NOTE: @alias
-
-only supporting inline separated with `|`
-
- NOTE: @macro
-
-Any types building on other types must be declared in lexical order at this time
-
---]]
-for i, line in ipairs(vim.api.nvim_buf_get_lines(b, 0, -1, false)) do
-	local row = i + 1
-	-- iterate LuaCATS comments
-	if not vim.startswith(line, "---") then
-		-- if we were processing a block, it is assumed finished
-		comment_idx = nil
-		goto continue
-	end
-
-	-- trim off comment dash and remove whitespace
-	local content = vim.trim(line:sub(4))
-
-	if vim.startswith(content, "@class") then -- new class, so we want to create a new comment
-		-- advance idx
-		comment_idx = #types.builders + 1
-		types.builders[comment_idx] = TypeBuilder.TypeClassBuilder.new(content, row)
-	elseif vim.startswith(content, "@alias") then -- new alias
-		-- advance idx
-		comment_idx = #types.builders + 1
-		types.builders[comment_idx] = TypeBuilder.TypeAliasBuilder.new(content, row)
-	elseif vim.startswith(content, "@field") then -- add field to class
-		local builder = types.builders[comment_idx]
-
-		if not builder or builder.get_type() ~= "class" then
-			utils.warn("@field does not follow class line %i : `%s`", row, line)
-		else
-			types.builders[comment_idx]:add_field(content)
-		end
-	elseif vim.startswith(content, "|") then -- extend alias
-		local builder = types.builders[comment_idx]
-
-		if not builder or builder.get_type() ~= "alias" then
-			utils.warn("| alias does not follow alias def line %i : `%s`", row, line)
-		else
-			types.builders[comment_idx]:add_field(content)
-		end
-	elseif vim.startswith(content, "@generic") then
-		utils.warn("generics are not supported yet")
-	elseif vim.startswith(content, "@enum") then
-		utils.warn("enums are not supported yet")
-	end
-
-	::continue::
-end
-
-for i, builder in ipairs(types.builders) do
-	local type_info = builder:build(types.types)
-	types.types[type_info.id] = type_info
-end
+local parsed = file_parser.parse(b)
 
 local offset = 0
-for _, comment in pairs(types.types) do
+for _, comment in pairs(parsed.types) do
 	local line = comment.end_ + offset
 
 	local comments = comment:to_string()
