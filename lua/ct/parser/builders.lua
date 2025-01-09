@@ -1,4 +1,4 @@
-local type_parsers = require("ct.type_parsers")
+local type_parsers = require("ct.parser.type_parsers")
 
 ---Module of type builders
 local M = {}
@@ -26,59 +26,63 @@ local M = {}
 ---@field alias string main declaration
 ---@field values? string[] Additional alias values
 
----@alias ct.RawType ct.RawTypeClass | ct.RawTypeAlias
+---@class (exact) ct.RawTypeMacro : ct.RawTypeBase
+---@field _tag 'macro'
+---@field lines string[] lines of macro content
+
+---@alias ct.RawType ct.RawTypeClass | ct.RawTypeAlias | ct.RawTypeMacro
 
 --   ╭─────────────────────────────────────────────────────────────────────────╮
---   │                        Type comment for external                        │
+--   │                     Types for external consumption                      │
 --   ╰─────────────────────────────────────────────────────────────────────────╯
+--   these are a poor mans AST of all the gathered information about a type
 
 ---Base interface for a ct.TypeComment
----@class (exact) ct.TypeCommentBase
+---@class (exact) ct.TypeBase
 ---@field id string
 ---@field _tag string Descriminant
 ---@field start number Row start of comment
 ---@field end_ number Row end of comment
----@field to_string fun(self): string[] Row end of comment
+---@field to_string fun(self): string[] Print out content for debugging XXX
 
 ---An instance of a comment class block. See [luals](https://luals.github.io/wiki/annotations/#class) for class syntax
----@class (exact) ct.TypeCommentClass : ct.TypeCommentBase
+---@class (exact) ct.TypeClass : ct.TypeBase
 ---@field _tag 'class'
 ---@field class string
 ---@field exact boolean
 ---@field fields ct.ParsedField[]
 
----An instance of an alias comment
----@class (exact) ct.TypeCommentAlias : ct.TypeCommentBase
+---An instance of an alias comment. See [luals](https://luals.github.io/wiki/annotations/#alias) for alias syntax
+---@class (exact) ct.TypeAlias : ct.TypeBase
 ---@field _tag 'alias'
 ---@field name string
 ---@field variants { type: string, doc_comment?: string }[]
 
 ---An instance of a type macro
----@class (exact) ct.TypeCommentMacro : ct.TypeCommentBase
+---@class (exact) ct.TypeMacro : ct.TypeBase
 ---@field _tag 'macro'
----@field transform string
----@field base string
+---@field block string
 
 ---Union of all types
----@alias ct.TypeComment ct.TypeCommentClass | ct.TypeCommentMacro
----@alias ct.TypeLookup table<string, ct.TypeComment> Lookup dict of all previously built types
+---@alias ct.Type ct.TypeClass | ct.TypeMacro | ct.TypeAlias
+---@alias ct.TypeLookup table<string, ct.Type> Lookup dict of all previously built types
 
 --   ╭─────────────────────────────────────────────────────────────────────────╮
 --   │                       Type Builder implementation                       │
 --   ╰─────────────────────────────────────────────────────────────────────────╯
 
----@class TypeBuilderBase
+---@class ct.BuilderBase
 ---@field private text ct.RawType
 ---@field get_type fun(self): 'class' | 'alias' | 'macro'
----@field build fun(self, types: ct.TypeLookup): ct.TypeComment
+---@field build fun(self, types: ct.TypeLookup): ct.Type
 
----@class TypeClassBuilder : TypeBuilderBase
+---@class ct.TypeClassBuilder : ct.BuilderBase
 ---@field private text ct.RawTypeClass
 M.TypeClassBuilder = {}
 
 ---@param str string comment line expected to start with @class
 ---@param row number
----@return TypeClassBuilder
+---@return ct.TypeClassBuilder
 M.TypeClassBuilder.new = function(str, row)
 	---@type ct.RawTypeClass
 	local text = {
@@ -89,7 +93,7 @@ M.TypeClassBuilder.new = function(str, row)
 		class = str,
 	}
 
-	---@type TypeBuilderBase
+	---@type ct.BuilderBase
 	local new_type = {
 		text = text,
 		get_type = function()
@@ -101,7 +105,7 @@ end
 
 ---comment
 ---@param str string
----@return TypeClassBuilder
+---@return ct.TypeClassBuilder
 function M.TypeClassBuilder:add_field(str)
 	table.insert(self.text.fields, str)
 	self.text.end_ = self.text.end_ + 1
@@ -113,7 +117,7 @@ function M.TypeClassBuilder:build(types)
 	local info = type_parsers.parse_class_string(self.text.class)
 	local fields = type_parsers.parse_class_fields(self.text.fields)
 
-	---@type ct.TypeCommentClass
+	---@type ct.TypeClass
 	local class_type = {
 		id = info.name .. ":" .. self.text.start,
 		_tag = "class",
@@ -151,14 +155,14 @@ function M.TypeClassBuilder:build(types)
 	return class_type
 end
 
----@class TypeAliasBuilder :TypeBuilderBase
+---@class ct.TypeAliasBuilder :ct.BuilderBase
 ---@field private text ct.RawTypeAlias
 M.TypeAliasBuilder = {}
 
 ---comment
 ---@param str string
 ---@param row number
----@return TypeClassBuilder
+---@return ct.TypeClassBuilder
 M.TypeAliasBuilder.new = function(str, row)
 	---@type ct.RawTypeAlias
 	local text = {
@@ -168,7 +172,7 @@ M.TypeAliasBuilder.new = function(str, row)
 		alias = str,
 	}
 
-	---@type TypeBuilderBase
+	---@type ct.BuilderBase
 	local new_type = {
 		text = text,
 		get_type = function()
@@ -181,7 +185,7 @@ end
 
 ---comment
 ---@param str string
----@return TypeAliasBuilder
+---@return ct.TypeAliasBuilder
 function M.TypeAliasBuilder:add_field(str)
 	self.text.values = self.text.values or {}
 	table.insert(self.text.values, str)
@@ -193,7 +197,7 @@ end
 function M.TypeAliasBuilder:build(types)
 	local info = type_parsers.parse_alias_string(self.text.alias, self.text.values)
 
-	---@type ct.TypeCommentAlias
+	---@type ct.TypeAlias
 	local alias_type = {
 		_tag = "alias",
 		id = info.name .. ":" .. self.text.start,
@@ -220,6 +224,78 @@ function M.TypeAliasBuilder:build(types)
 		return str
 	end
 	return alias_type
+end
+
+---@class ct.TypeMacroBuilder : ct.BuilderBase
+---@field private text ct.RawTypeMacro
+M.TypeMacroBuilder = {}
+
+---@param str string
+---@return ct.TypeMacroBuilder
+function M.TypeMacroBuilder:add_field(str)
+	table.insert(self.text.lines, str)
+	self.text.end_ = self.text.end_ + 1
+	return self
+end
+
+---@param types ct.TypeLookup
+function M.TypeMacroBuilder:build(types)
+	---@type ct.TypeMacro
+	local macro_type = {
+		id = math.random(), -- TODO
+		_tag = "macro",
+		start = self.text.start,
+		end_ = self.text.end_,
+		to_string = function()
+			return {}
+		end,
+		block = vim.iter(self.text.lines)
+			:map(
+				---@param line string
+				function(line)
+					local replacements = {
+						-- text between backticks `foo.bar`
+						["`[%a%.]+`"] = function(match)
+							return string.format('_.types["%s"]', match:sub(2, -2))
+						end,
+					}
+					for pat, fn in pairs(replacements) do
+						line = line:gsub(pat, fn)
+					end
+					return line
+				end
+			)
+			:join("\n"),
+	}
+
+	macro_type.to_string = function()
+		return vim.split(macro_type.block, "\n", { plain = true })
+	end
+
+	return macro_type
+end
+
+---@param str string comment line expected to start with @class
+---@param row number
+---@return ct.TypeMacroBuilder
+function M.TypeMacroBuilder.new(str, row)
+	---@type ct.RawTypeMacro
+	local text = {
+		_tag = "macro",
+		start = row,
+		end_ = row + 1,
+		lines = { str },
+	}
+
+	---@type ct.BuilderBase
+	local new_type = {
+		text = text,
+		get_type = function()
+			return text._tag
+		end,
+	}
+
+	return setmetatable(new_type, { __index = M.TypeMacroBuilder }) --[[@as any]]
 end
 
 return M
