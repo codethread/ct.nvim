@@ -1,24 +1,18 @@
 --   ╭─────────────────────────────────────────────────────────────────────────╮
 --   │                        Part of the internal Lib                         │
 --   ╰─────────────────────────────────────────────────────────────────────────╯
--- -- not sure where this has gone XXX
--- if table.pack == nil then
--- 	function table.pack(...)
--- 		return { n = select("#", ...), ... }
--- 	end
--- end
 
 function Todo()
 	return error("not implemented") --[[@as any]]
 end
 
 local function debug_log(fn)
-	if vim.fn.getenv("TEST") then
+	if Ct and Ct.is_test then
 		return function(...)
 			vim.print("inputs: ", ...)
 			local out = table.pack(fn(...))
 			vim.print("outputs:", out)
-			return table.unpack(out)
+			return unpack(out)
 		end
 	else
 		return fn
@@ -124,7 +118,10 @@ function SpecBase:is(val)
 		end
 	end
 
-	return (#errs == 0), errs
+	if #errs == 0 then
+		return true
+	end
+	return false, errs
 end
 
 ---@type SpecCustomValidator<string>
