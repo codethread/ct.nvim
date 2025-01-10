@@ -17,9 +17,15 @@ end
 -----@field equal fun(a, b) # assert deeply
 -----@field same fun(a, b) # assert reference
 
+---@class Assert.has
+---@field error function # something that will error
+---@field no Assert.has
+
 ---@class Assert
+---@field has Assert.has
 _G.assert = assert
 
+---Same deep value
 ---@param a unknown
 ---@param b unknown
 function assert.eq(a, b)

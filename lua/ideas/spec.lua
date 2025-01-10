@@ -65,13 +65,15 @@ do -- class annotations
 	---@field trim? boolean
 	---@field dedent? boolean
 
-	---Not exactly sure how this will work, might end up wrapping the value
-	---@class SpecFunction : SpecBase
-	---@field doc? fun(self, str: string, opts?: SpecDocOpts): SpecFunction
-	---@field self? fun(self, type?: string): SpecFunction # if a class, this will set the self type, can provide an optional name to inject
-	---@field args? fun(self, opts?: SpecBase[]): SpecFunction
-	---@field returns? fun(self, opts?: SpecBase[]): SpecFunction
-	---@field default? fun(self, fn: function): SpecFunction
+	----Not exactly sure how this will work, might end up wrapping the value
+	----most likely it can do an init validation, just runtime, but others can
+	----use the `Impl.fn` to get validation
+	----@class SpecFunction : SpecBase
+	----@field doc? fun(self, str: string, opts?: SpecDocOpts): SpecFunction
+	----@field self? fun(self, type?: string): SpecFunction # if a class, this will set the self type, can provide an optional name to inject
+	----@field args? fun(self, opts?: SpecBase[]): SpecFunction
+	----@field returns? fun(self, opts?: SpecBase[]): SpecFunction
+	----@field default? fun(self, fn: function): SpecFunction
 
 	---An instance of an implemented function
 	---@class SpecFunctionImpl<Fn>: { call: Fn }
@@ -137,6 +139,35 @@ local is_string = {
 	end),
 }
 
+---@type SpecCustomValidator<function>
+local is_function = {
+	_id = "is function",
+	is = debug_log(function(fn)
+		local ok = type(fn) == "function"
+		if ok then
+			return true, nil
+		else
+			return false, { msg = "not a function" }
+		end
+	end),
+}
+---@type fun(count: number): SpecCustomValidator<function>
+local function is_function_arity(count)
+	return {
+		_id = "is function",
+		is = debug_log(function(fn)
+			local info = debug.getinfo(fn)
+			vim.print(count, info.nparams)
+			local ok = info.nparams == count
+			if ok then
+				return true, nil
+			else
+				return false, { msg = "wrong arg count" }
+			end
+		end),
+	}
+end
+
 ---@class SpecString : SpecBase
 ---@field default? fun(self, val: string): SpecString
 ---@field custom? fun(self, validator: SpecCustomValidator<string>): SpecString
@@ -150,6 +181,33 @@ function SpecString.new()
 	local base = SpecBase.new()
 	base:add_spec(is_string)
 	return setmetatable(base, { __index = SpecString }) --[[@as SpecString]]
+end
+
+---Not exactly sure how this will work, might end up wrapping the value
+---most likely it can do an init validation, just runtime, but others can
+---use the `Impl.fn` to get validation
+---@class SpecFunction : SpecBase
+---@field doc? fun(self, str: string, opts?: SpecDocOpts): SpecFunction
+---@field self? fun(self, type?: string): SpecFunction # if a class, this will set the self type, can provide an optional name to inject
+---@field args? fun(self, opts: SpecBase[]): SpecFunction
+---@field returns? fun(self, opts?: SpecBase[]): SpecFunction
+---@field default? fun(self, fn: function): SpecFunction
+local SpecFunction = setmetatable({}, { __index = SpecBase })
+
+---@package
+---@return SpecFunction
+function SpecFunction.new()
+	local base = SpecBase.new()
+	base:add_spec(is_function)
+	return setmetatable(base, { __index = SpecFunction }) --[[@as SpecFunction]]
+end
+
+---@param opts SpecBase[]
+---@return SpecFunction
+function SpecFunction:args(opts)
+	local arity = #opts
+	self:add_spec(is_function_arity(arity))
+	return self
 end
 
 -- ## Spec builders
@@ -175,7 +233,7 @@ do -- Spec Impls
 	---@param opts? SpecPrimitiveOpts
 	---@return SpecFunction
 	function Spec:fn(opts)
-		return Todo()
+		return SpecFunction.new()
 	end
 	-- ...etc
 
