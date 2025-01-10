@@ -76,3 +76,18 @@ end
 
 print(process(FileIo))
 ```
+
+### generics can't be inheritied from
+
+```lua
+---@class XX<T>: { foo: T }
+
+---@type XX<string>
+local xx = {}
+print(xx.foo:lower()) -- all good
+
+---@class YY : XX<string>
+local xxYY = {}
+
+xxYY.foo -- no type
+```

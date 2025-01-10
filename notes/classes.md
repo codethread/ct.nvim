@@ -144,3 +144,79 @@ for _, i in ipairs({
 	print(instance:inherited_sum(), instance:sum_all())
 end
 ```
+
+## Easy code organisation
+
+### Add methods using the shorthand syntax for better lsp help
+
+```lua
+---@class Class
+local Class = {}
+
+---@param n integer
+function Class:foo(n) end
+
+Class:foo(1)
+--    ^ go-to-def will go to the correct spot
+
+---comment
+---@param self Class
+---@param n integer
+Class.bar = function(self, n) end
+
+Class:bar(1)
+--    ^ go-to-def will offer 2 choices, one for field, one for function
+
+```
+
+Same is true even for just creating object wrappers for functions
+
+```lua
+local OtherClass = {
+	---@param n integer
+	bar = function(n) end,
+}
+
+OtherClass.bar(0)
+--         ^ go-to-def will offer 2 choices, one for field, one for function
+```
+
+### 🌶️ use do blocks to make code folding easier
+
+More of a personal one, but using a `do..end` blocks allows easy collapsing of class details. The methods are still added, formatted and LSP'd correctly
+
+```lua
+---@class Class
+local Class = {}
+
+do -- Class impl
+	---@param n integer
+	function Class:foo(n) end
+end
+-- ^ this will now fold nice and easy
+
+---@type Class
+local c = {}
+c:foo(0)
+```
+
+### 🌶️ use @package over `private`
+
+Following on from the above points, `@package` allows specifying on the method, but it does allow method use inside module. That said, modules are probably better mechanisms for scoping
+
+At the potential cost of `protected`, which if you need it, you need it
+
+```lua
+---@class Class
+local Class = {}
+
+---@param n integer
+function Class:foo(n)
+	self:private(n)
+end
+
+---@package
+function Class:private(n)
+	return "" .. n
+end
+```

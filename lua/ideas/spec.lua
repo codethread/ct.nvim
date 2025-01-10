@@ -2,79 +2,227 @@
 --   │                        Part of the internal Lib                         │
 --   ╰─────────────────────────────────────────────────────────────────────────╯
 
----@alias SpecValue 'boolean'
----| 'string'
----| 'integer'
----| 'number'
----| '__SpecValue' # special value for table specs
+local function todo()
+	return error("not implemented") --[[@as any]]
+end
 
----@class SpecValueDetail
----@field val SpecValue
----@field doc? string
----@field default? unknown
----@field is? fun(v: unknown): boolean, string?
+-- heavily inspired by:
+-- - https://zod.dev/?id=primitives
+-- - https://clojure.org/guides/spec
 
----@class SpecMethod
----@field method? boolean
----@field args (SpecValue | SpecValueDetail)[]
----@field doc? string
----@field returns? SpecValue[]
+do -- class annotations
+	---@class SpecError
+	---@field msg string
 
----@alias SpecObject table<string, SpecValue | SpecValueDetail>
+	---Base class of all specs,
+	--- XXX: would be an interface
+	--- TODO most of these could generate `as` comments
 
----@param fields SpecObject
-local function struct(fields) end
+	---@class SpecCustomValidator<Input>: { is: fun(input: Input): boolean, SpecError|nil }
 
----@param t SpecValue
----@return '__SpecValue'
-local function list(t) end
+	---@interface
+	---@class SpecBase
+	---@field is fun(self, data: unknown): boolean, SpecError? # checks if data matches spec
+	---@field assert fun(self, data: unknown): boolean, unknown # throws if data does not conform to spec, otherwise returns data
 
----@param name string
----@param methods table<string, SpecMethod>
----@return "__SpecInterface"
-local function interface(name, methods) end
+	---@class SpecPrimitiveOpts
+	---@field message? string # error message to show
 
----@class SpecClass
----@field doc? string
----@field data? SpecObject
----@field implements "__SpecInterface"[]
+	---@class SpecString : SpecBase
+	---@field default? fun(self, val: string): SpecString
+	---@field custom? fun(self, validator: SpecCustomValidator<string>): SpecString
+	---@field min? fun(self, size: integer, opts?: SpecPrimitiveOpts): SpecString
+	---@field max? fun(self, size: integer, opts?: SpecPrimitiveOpts): SpecString
 
----@param spec SpecClass
----@return any
-local function class(spec) end
+	---@class SpecNumber : SpecBase
+	---@field default? fun(self, val: number): SpecNumber
+	---@field custom? fun(self, validator: SpecCustomValidator<number>): SpecNumber
+	---@field min? fun(self, size: integer, opts?: SpecPrimitiveOpts): SpecString
+	---@field max? fun(self, size: integer, opts?: SpecPrimitiveOpts): SpecString
 
----@class SpecRecord
----@field name string
----@field doc? string
----@field data SpecObject
----@field runtime_check? boolean # could make it this is off, but can be enabled for external API, e.g user config
+	---@class SpecRecord : SpecBase
+	---@field default? fun(self, val: table): SpecRecord
+	---@field custom? fun(self, validator: SpecCustomValidator<table>): SpecRecord
+	---@field required? fun(self, opts?: SpecPrimitiveOpts): SpecRecord # mark all members in the spec as required
+	---@field partial? fun(self, opts?: SpecPrimitiveOpts): SpecRecord # mark all members in the spec as optional
 
----@param spec SpecRecord
----@return any
-local function record(spec) end
+	---@class SpecDocOpts
+	---@field trim? boolean
+	---@field dedent? boolean
 
----@return any
-local function todo() end
+	---Not exactly sure how this will work, might end up wrapping the value
+	---@class SpecFunction : SpecBase
+	---@field doc? fun(self, str: string, opts?: SpecDocOpts): SpecFunction
+	---@field self? fun(self, type?: string): SpecFunction # if a class, this will set the self type, can provide an optional name to inject
+	---@field args? fun(self, opts?: SpecBase[]): SpecFunction
+	---@field returns? fun(self, opts?: SpecBase[]): SpecFunction
+	---@field default? fun(self, fn: function): SpecFunction
 
----Lib end
+	---An instance of an implemented function
+	---@class SpecFunctionImpl<Fn>: { call: Fn }
+
+	---@class SpecInterface
+	---@field name string
+	---@field methods table<string, SpecFunction>
+end
+
+-- ## Spec builders
+--
+-- these build specs, which can then be composed and also passed to `Impl`
+-- builders (which product value factories as opposed the Specs which are just
+-- validations)
+local Spec = {
+	--   ╭─────────────────────────────────────────────────────────────────────────╮
+	--   │                               Primitives                                │
+	--   ╰─────────────────────────────────────────────────────────────────────────╯
+	---@param opts? SpecPrimitiveOpts
+	---@return SpecString
+	string = function(opts)
+		return todo()
+	end,
+	---@param opts? SpecPrimitiveOpts
+	---@return SpecNumber
+	number = function(opts)
+		return todo()
+	end,
+	---@param opts? SpecPrimitiveOpts
+	---@return SpecFunction
+	fn = function(opts)
+		return todo()
+	end,
+	-- ...etc
+
+	--   ╭─────────────────────────────────────────────────────────────────────────╮
+	--   │                                 Complex                                 │
+	--   ╰─────────────────────────────────────────────────────────────────────────╯
+	---@param fields table<string, SpecBase>
+	---@return SpecRecord
+	record = function(fields)
+		return todo()
+	end,
+
+	---@param items SpecBase[]
+	---@return SpecRecord
+	list = function(items)
+		return todo()
+	end,
+
+	---@param name string
+	---@param methods table<string, SpecFunction>
+	---@return SpecInterface
+	interface = function(name, methods)
+		return todo()
+	end,
+}
+
+---## Implementation builders
+---
+---these create factories for runtime data structures. Most will often be built out of `Spec` values
+---@class SpecImpls
+local Impl = {}
+do -- Impl
+	---@class SpecClassData : SpecDetails
+	---@field visibility? 'private' | 'public' | 'protected'
+
+	---@class SpecClass
+	---@field doc? string
+	---@field super? any # do i want to add inheritance?
+	---@field data? table<string, SpecClassData>
+	---@field implements "__Spec.interface"[]
+
+	---Create a 'class' object with data and behaviour
+	---@param spec SpecClass
+	---@return any
+	function Impl:class(spec)
+		return todo()
+	end
+
+	---@class SpecStruct
+	---@field name string
+	---@field doc? string
+	---@field data SpecRecord
+	---@field runtime_check? boolean # could make it this is off, but can be enabled for external API, e.g user config
+
+	---Create a table of pure data
+	---if needing behaviour, use `class`
+	---@param spec SpecStruct
+	---@return any
+	function Impl.struct(spec)
+		return todo()
+	end
+
+	---Create an implementation of a function, intended for creating runtime
+	---validated function
+	---@return SpecFunctionImpl
+	---@generic Fn
+	---@param spec SpecFunction
+	---@param impl `Fn`
+	---@return Fn
+	function Impl.fn(spec, impl)
+		return todo()
+	end
+end
 
 --   ╭─────────────────────────────────────────────────────────────────────────╮
 --   │                        User land implementation                         │
 --   ╰─────────────────────────────────────────────────────────────────────────╯
----magically this is generated from the `interface` call below
+--XXX: magically this is generated from the `interface` call below
 ---@class IReaderWriter
----@field read fun(self, target: string): string[]
----@field write fun(self, target: string, out: string[]): boolean
+---@field read fun(self: unknown, target: string): string[]
+---@field write fun(self: unknown, target: string, out: string[]): boolean
 
-local IReaderWriter = interface("ReaderWriter", {
+-- --@class IReaderWriter<Self>: { read: fun(self: Self, target: string): string[]; write: fun(self: Self, target: string, out: string[]): boolean }
+
+---My lovely func
+---@alias AddFn SpecFunctionImpl<fun(_:number,_:number):string>
+---@type AddFn
+local add = Impl.fn(
+	Spec
+		.fn() --
+		:doc([[My lovely func]])
+		:args({ Spec.number():min(1), Spec.number():min(1) })
+		:returns { Spec.string() },
+	function(a, b)
+		return tostring(a + b)
+	end
+)
+
+local out = add.call(3, 2)
+
+local email_spec = Spec.string():custom {
+	is = function(input)
+		local is_mail = input:match("foo@bar.com")
+		if is_mail then
+			return true
+		end
+		return false, { msg = "oh dear" }
+	end,
+}
+
+local r = Spec.record {
+	email = email_spec,
+	y = Spec.number(),
+	z = Spec.record {
+		foo = Spec.string(),
+		fn = Spec.fn({ message = "oh dear" })
+			:doc([[ hey there ]], { dedent = false })
+			:args({ Spec.string() })
+			:returns { Spec.string() },
+	},
+}
+
+local test = Spec.record {
+	x = "hey",
+}
+local IReaderWriter = Spec.interface("ReaderWriter", {
 	read = {
 		method = true,
 		args = { "string", "number" },
 		returns = {
-			list("string"),
-			struct {
+			Spec.list("string"),
+			Spec.record {
 				a = {
-					val = "number",
+					t = "number",
 					is = function(maybe)
 						return type(maybe) == "number"
 					end,
@@ -84,90 +232,81 @@ local IReaderWriter = interface("ReaderWriter", {
 	},
 	write = {
 		method = true,
-		args = { struct { a = "number", b = { val = "string", default = "hey" } } },
-		returns = { "boolean", struct { a = list("string") } },
+		args = { Spec.record { a = "number", b = { t = "string", default = "hey" } } },
+		returns = { "boolean", Spec.record { a = Spec.list("string") } },
 	},
 })
 
------ METHOD 1
----@class C : IReaderWriter -- could generate this line
-local C = class {
-	name = "Foo",
-	data = { a = "string" },
-	implements = { IReaderWriter },
-	---@type IReaderWriter -- could generate this line, forcing methods to be correct
-	methods = {
-		read = function(x, y, z) -- typed!
-			return ""
-		end,
-		write = function(x, y, z) -- typed!
-			return ""
-		end,
-	},
-}
-
-C:write() -- typed
-
------ METHOD 2
------ this might work if for some reason different implementations where required... maybe this is a trait
----@class C : IReaderWriter
----@type fun(impl: IReaderWriter): C
-local cFact = class {
-	name = "Foo",
-	implements = { IReaderWriter },
-}
-
-local C = cFact {
-	read = function(x, y, z)
-		return ""
-	end,
-}
-
-C:write() -- typed
-
------ METHOD 1.1 (multiple implements)
+----- METHOD 1 (multiple implements)
 ---@class Printer
 ---@field print fun(self): string
 ---@field debug fun(self): string
 
-local Printer = "__SpecInterface"
+local Printer = "__Spec.interface" -- quick hack to avoid typing one out
 
---- generate this from the data info
+--- XXX: generate this from the data info
+---
 ---@class CStruct
 ---@field x number
 ---@field y number # y cordinate of a vec
 
----@class C : CStruct, IReaderWriter -- could generate this line
+---@class (exact) C : CStruct, IReaderWriter, Printer -- XXX: could generate these types
 ---@field new fun(args: CStruct): C
-local Foo = class {
+---@field private priv boolean
+---@field protected prot boolean
+local Foo = Impl.class {
+	name = "Foo",
 	data = {
 		x = "number",
-		y = { val = "number", doc = "y cordinate of a vec" },
+		y = { t = "number", doc = "y cordinate of a vec" },
+		priv = { t = "boolean", visibility = "private" },
+		prot = { t = "boolean", visibility = "protected" },
 	},
 	implements = { IReaderWriter, Printer },
-	---@class FooImpl : IReaderWriter , Printer -- need to generate the extra class on the fly in order to type all methods
+	---@class (exact) FooImpl : IReaderWriter , Printer -- XXX: need to generate the extra class on the fly in order to type all methods
 	---@type FooImpl
 	methods = {
-		read = todo,
+		---@param self C XXX genereate this bit
+		read = function(self, y)
+			---@class C # XXX: this needs to go inside the function in order to access private members, but only needs to be written for that usecase. annoying
+			self = self
+
+			self:jump() -- amazingly this is valid even if typed further down, so can utilise all class info methods
+
+			return todo()
+		end,
+		---@param self C
+		write = function(self, x, y)
+			---@class C
+			self = self
+			if self.priv then -- this is now unhappy
+			end
+		end,
 		debug = todo,
-		write = todo,
 		print = todo,
 	},
 }
 
-local foo = Foo.new { x = 3, y = 2 }
+function Foo:jump()
+	if self.priv and self.prot then
+	end
+end
 
---- generated from record
+local foo = Foo.new { x = 3, y = 2 }
+print(foo.priv)
+print(foo.prot)
+
+--- generated from Spec.record
 ---@class Vec
 ---@field x number
 ---@field y number # y cordinate of a vec
 
 ---@type fun(v: Vec): Vec -- could optinally create a factory, or just use it to create types
-local Vec = record {
+local Vec = Impl.struct {
 	name = "Vec", -- could figure out if this is needed or not - the assignment may be enough
 	data = {
 		x = "number",
-		y = { val = "number", doc = "y cordinate of a vec" },
+		y = { t = "number", doc = "y cordinate of a vec" },
 	},
 }
 
@@ -180,4 +319,27 @@ local function dot(v1, v2)
 	return v1 + v2
 end
 
-local configFactory
+local configFactory = Impl.struct {
+	name = "Config",
+	runtime_check = true,
+	data = {
+		name = "string?",
+		dob = Spec.record {
+			year = "integer",
+			month = {
+				t = "string",
+				is = function(input)
+					return vim.list_contains({ "Dec", "Jan", "Feb" }, input)("winter babies only")
+				end,
+			},
+		},
+	},
+}
+
+local configer = Impl.class {
+	name = "Configer",
+	data = {
+		config = configFactory,
+	},
+	implements = {},
+}
