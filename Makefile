@@ -5,7 +5,11 @@ RUN=nvim --headless --noplugin -u test/spec.vim
 .PHONY: all nvim test watch prepare
 
 prepare:
-	@echo "nothing to do"
+	mkdir -p test/vendor
+	# luarocks install luacheck --local
+	# git clone --depth 1 https://github.com/nvim-lua/plenary.nvim ./test/vendor/plenary.nvim
+	git clone --depth 1 https://github.com/LuaCATS/luassert.git ./test/vendor/luassert
+	# git clone --depth 1 https://github.com/m00qek/matcher_combinators.lua ./test/vendor/matcher_combinators
 
 nvim:
 	@nvim --noplugin -u test/spec.vim

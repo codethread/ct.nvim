@@ -1,3 +1,4 @@
+local models = require("ideas.models")
 --   ╭─────────────────────────────────────────────────────────────────────────╮
 --   │                        Part of the internal Lib                         │
 --   ╰─────────────────────────────────────────────────────────────────────────╯
@@ -25,6 +26,7 @@ end
 
 do -- class annotations
 	---@class SpecError
+	---@field id string
 	---@field msg string
 
 	---Base class of all specs,
@@ -141,20 +143,20 @@ local is_string = {
 
 ---@type SpecCustomValidator<function>
 local is_function = {
-	_id = "is function",
+	_id = models.ids.is_function,
 	is = debug_log(function(fn)
 		local ok = type(fn) == "function"
 		if ok then
 			return true, nil
 		else
-			return false, { msg = "not a function" }
+			return false, { id = models.ids.is_function, msg = "not a function" }
 		end
 	end),
 }
 ---@type fun(count: number): SpecCustomValidator<function>
 local function is_function_arity(count)
 	return {
-		_id = "is function",
+		_id = models.ids.is_function_arity,
 		is = debug_log(function(fn)
 			local info = debug.getinfo(fn)
 			vim.print(count, info.nparams)
@@ -162,7 +164,7 @@ local function is_function_arity(count)
 			if ok then
 				return true, nil
 			else
-				return false, { msg = "wrong arg count" }
+				return false, { id = models.ids.is_function_arity, msg = "wrong arg count" }
 			end
 		end),
 	}
@@ -189,7 +191,6 @@ end
 ---@class SpecFunction : SpecBase
 ---@field doc? fun(self, str: string, opts?: SpecDocOpts): SpecFunction
 ---@field self? fun(self, type?: string): SpecFunction # if a class, this will set the self type, can provide an optional name to inject
----@field args? fun(self, opts: SpecBase[]): SpecFunction
 ---@field returns? fun(self, opts?: SpecBase[]): SpecFunction
 ---@field default? fun(self, fn: function): SpecFunction
 local SpecFunction = setmetatable({}, { __index = SpecBase })
@@ -201,11 +202,14 @@ function SpecFunction.new()
 	base:add_spec(is_function)
 	return setmetatable(base, { __index = SpecFunction }) --[[@as SpecFunction]]
 end
+---@class SpecFunctionOpts
+---@field vararg? boolean
 
----@param opts SpecBase[]
+---@param specs? SpecBase[]
+---@param opts? SpecFunctionOpts
 ---@return SpecFunction
-function SpecFunction:args(opts)
-	local arity = #opts
+function SpecFunction:args(specs, opts)
+	local arity = #specs
 	self:add_spec(is_function_arity(arity))
 	return self
 end

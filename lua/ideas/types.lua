@@ -1,14 +1,5 @@
 ---@diagnostic disable: unused-local
 
-_G.Ct = { is_test = false }
-
--- -- not sure where this has gone XXX
-if table.pack == nil then
-	function table.pack(...)
-		return { n = select("#", ...), ... }
-	end
-end
-
 ----@class Assert.Are
 ----@field equal fun(a, b) # assert deeply
 ----@field same fun(a, b) # assert reference
@@ -24,6 +15,9 @@ end
 ---@class Assert
 ---@field has Assert.has
 _G.assert = assert
+
+---@class _G
+---@field pending fun(desc: string):nil
 
 ---Same deep value
 ---@param a unknown
