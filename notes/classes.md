@@ -181,9 +181,10 @@ OtherClass.bar(0)
 --         ^ go-to-def will offer 2 choices, one for field, one for function
 ```
 
-### 🌶️ use do blocks to make code folding easier
+### 🌶️ use blocks to make code folding easier
 
-More of a personal one, but using a `do..end` blocks allows easy collapsing of class details. The methods are still added, formatted and LSP'd correctly
+More of a personal one, but using a `do..end` or `--#region` blocks allows easy collapsing of class details.
+Even with `do`, the methods are still added, formatted and LSP'd correctly
 
 ```lua
 ---@class Class
@@ -198,6 +199,18 @@ end
 ---@type Class
 local c = {}
 c:foo(0)
+```
+
+```lua
+---@class Class
+local Class = {}
+
+--#region
+---@param n integer
+function Class:foo(n)
+end
+--#endregion
+--^ this folds
 ```
 
 ### 🌶️ use @package over `private`
