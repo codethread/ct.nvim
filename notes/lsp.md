@@ -77,7 +77,50 @@ end
 print(process(FileIo))
 ```
 
-### generics can't be inheritied from
+### Unions without discriminants are created as merged keys
+
+```lua
+---@type { str : string } | { num : number }
+local union = {}
+---@type { str : string? } | { num : number? }
+local union_alt = {}
+
+---@class Str
+---@field s string
+---@class Num
+---@field n number
+
+--- even if we really aggressively scope these types down
+---@type { str? : Str, num : nil } | { num? : Num, str: nil }
+local un = {}
+
+local missing = union.str:len()
+local also_missing = union_alt.str:len()
+local missing = un.num.n -- lsp is very happy to charge on here
+```
+
+#### solution
+
+Used tagged unions
+
+```lua
+---@class A
+---@field _tag 'A'
+---@field a string
+---@class B
+---@field _tag 'B'
+---@field b number
+---@type A | B
+local conformed = nil
+if conformed._tag == 'A' then
+	local x = conformed.a -- narrowed
+	local xy = conformed.b -- 'lsp Err! which is good!'
+end
+```
+
+## generic issues (which is a WIP so this will likely change as time goes on)
+
+### generics can't be inherited from
 
 ```lua
 ---@class XX<T>: { foo: T }
@@ -90,4 +133,42 @@ print(xx.foo:lower()) -- all good
 local xxYY = {}
 
 xxYY.foo -- no type
+```
+
+### generic captures don't work for functions
+
+```lua
+---@generic T
+---@param type `T`
+---@return T
+local function _(type) end
+
+local s = _"string"
+--    ^ correctly typed as `string`
+
+local fn = _"fun(): string"
+--    ^ does not pick up function type
+```
+
+## casting and assertions
+
+### primitives ignore `@as`
+
+```lua
+local s = "fn1" --[[@as number]]
+--    ^ still a string)
+
+-- can use parens
+local n = ("fn1" --[[@as any]]) --[[@as number]]
+--    ^ number
+-- however stylua strips it out 🙁
+```
+
+Best workaround is an empty func
+
+```lua
+local _ = function(...)end
+
+local fn = _ "fn1" --[[@as fun(): Foo]]
+---   ^ correctly typed
 ```

@@ -18,4 +18,6 @@ function M.run_for_buffer(bufn)
 	end
 end
 
+function M.setup() end
+
 return M
