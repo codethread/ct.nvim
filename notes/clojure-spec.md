@@ -126,6 +126,59 @@ spec is amazing, to paraphrase the 'why spec' docs, along with my thoughts on ho
             string string-ascii string-alphanumeric symbol symbol-ns uuid)
 ```
 
+## error struct
+
+https://clojure.org/guides/spec#_explain
+
+```clj
+(s/def ::n number?)
+(s/def ::s string?)
+(s/def ::n-or-s (s/or :n ::n :s ::s))
+
+(s/explain-data ::n "")  ; "\"\" - failed: number? spec: :clj.core/n\n"
+; #:clojure.spec.alpha{:problems
+;                      [{:path [],
+;                        :pred clojure.core/number?,
+;                        :val "",
+;                        :via [:clj.core/n],
+;                        :in []}],
+;                      :spec :clj.core/n,
+;                      :value ""}
+
+(s/explain-str ::n-or-s [])
+; "[] - failed: number? at: [:n] spec: :clj.core/n
+;  [] - failed: string? at: [:s] spec: :clj.core/s"
+
+(s/explain-data ::n-or-s [])
+; #:clojure.spec.alpha{:problems
+;                      ({:path [:n],
+;                        :pred clojure.core/number?,
+;                        :val [],
+;                        :via [:clj.core/n-or-s :clj.core/n],
+;                        :in []}
+;                       {:path [:s],
+;                        :pred clojure.core/string?,
+;                        :val [],
+;                        :via [:clj.core/n-or-s :clj.core/s],
+;                        :in []}),
+;                      :spec :clj.core/n-or-s,
+;                      :value []}
+
+(s/def ::foo (s/keys :req [::n ::s]))
+
+(s/explain-data ::foo {::n "hhh" ::s "hey"})
+; #:clojure.spec.alpha{:problems
+;                      ({:path [:clj.core/n],
+;                        :pred clojure.core/number?,
+;                        :val "hhh",
+;                        :via [:clj.core/foo :clj.core/n],
+;                        :in [:clj.core/n]}),
+;                      :spec :clj.core/foo,
+;                      :value #:clj.core{:n "hhh", :s "hey"}}
+
+
+```
+
 ## how this could work in lua
 
 most lives in [ here ](./clojure.lua)
